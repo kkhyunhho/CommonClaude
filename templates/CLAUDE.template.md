@@ -23,8 +23,12 @@ laboratory where all devices compose. To make that composition cheap,
 **every project exposes the same shape**:
 
 - a Python **driver library** (`src/<codename>/`) — one class, one device;
-- a thin **FastAPI server** (`server/`) exposing `/v1/*` JSON so any
-  client (ESP32, lab website, an integration layer) drives it over HTTP;
+  this is the baseline every project ships;
+- a thin **FastAPI server** (`server/`) exposing `/v1/*` JSON **where
+  remote/web control is actually wanted** — primarily the integration
+  module(s) the lab website drives, and any device you want to control
+  standalone over HTTP. It is **not mandatory for every device driver**;
+  add it per need rather than designing one for each device up front;
 - an optional **integration layer** that composes several devices, talking
   to them **over HTTP** for loose coupling, or **in-process** (direct
   import) when real-time safety interlocks demand zero network latency
@@ -66,10 +70,10 @@ codename (see Naming).
 ├── LearnedPatterns.md        Problem/Cause/Fix/Rule log
 ├── pyproject.toml            build, deps, ruff + mypy config
 ├── src/<codename>/           the driver library (one class per device)
-├── server/                   FastAPI /v1 bridge (app.py, routes.py,
-│                             schemas.py, errors.py, <codename>.toml)
+├── server/                   FastAPI /v1 bridge — OPTIONAL, add per need
+│                             (app.py, routes.py, schemas.py, errors.py)
 ├── tests/                    production unit tests (CI)
-│   └── server/               server tests against a Fake device
+│   └── server/               server tests against a Fake device (if server/)
 └── claude_test/              HIL / debug scripts (exempt from style rules)
 ```
 
