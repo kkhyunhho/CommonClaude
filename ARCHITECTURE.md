@@ -74,15 +74,22 @@ its **own NUC**; cross-phase coordination is networked.
 
 | Cell | Devices | `/v1` port |
 |------|---------|-----------|
-| cell1 | XZ gantry (3 MKS motors) + syringe pump + balance | 17054 |
-| cell2 | XZ gantry (3 MKS motors) + syringe pump + balance | 17056 |
-| cell3 | XZ gantry (3 MKS motors) + syringe pump + balance | 17058 |
-| cell4 | linear motor (Y axis) | 17060 |
+| cell1 | XZ gantry (3 MKS motors) + syringe pump | 17054 |
+| cell2 | XZ gantry (3 MKS motors) + syringe pump | 17056 |
+| cell3 | XZ gantry (3 MKS motors) + syringe pump | 17058 |
+| cell4 | linear motor (Y axis) + **balance** | 17060 |
 | (Phase-1 orchestrator) | composes cell1–4 (built when ≥2 cells run) | 17062 |
 
-Totals: 9 MKS motors + 3 pumps + 3 balances + 1 linear motor. Each of
-cell1–3 is the **SyringeLiquidHandler** cell shape (XZ + pump + balance);
-SyringeLiquidHandler is their reference implementation. A robot arm is
+Totals: 9 MKS motors + 3 pumps + 1 linear motor + **1 balance**. There is
+**one balance for the whole Phase** — it is mounted on cell4's Y-axis linear
+motor and shuttles under cell1–3 to weigh each one's dispense, so the
+balance belongs to **cell4**, not the dispensing cells. cell1–3 are
+dispense-only (XZ + pump). Weighing a dispense is therefore a **cross-cell**
+interaction (cell4 positions its balance under the target cell) coordinated
+by the Phase orchestrator.
+
+The **SyringeLiquidHandler** repo is the reference implementation for the
+dispensing-cell shape (its balance code seeds cell4's). A robot arm is
 deferred — when added it is its own cell (or Phase-level shared); an arm
 reaching **into** a cell's workspace is cross-cell motion whose collision
 avoidance is a dedicated design point (e.g. lock/halt the target cell
