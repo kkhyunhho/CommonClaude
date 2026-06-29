@@ -70,16 +70,34 @@ coordination/safety boundary, nothing else.
 Which hardware, on which NUC. The whole SDL is built in two phases, each on
 its **own NUC**; cross-phase coordination is networked.
 
-### Phase 1 (NUC A)
+### Phase 1 (NUC A) — actual bench layout
 
-| Cell | Devices |
-|------|---------|
-| Dispensing cell ×3 | each = 3 MKS motors (XYZ cartesian) + 1 syringe pump |
-| Weighing cell ×1   | linear motor + electronic balance |
-| Robot arm ×1       | **Phase-level (shared)** — transfers between cells |
+| Cell | Devices | `/v1` port |
+|------|---------|-----------|
+| cell1 | XZ gantry (3 MKS motors) + syringe pump + balance | 17054 |
+| cell2 | XZ gantry (3 MKS motors) + syringe pump + balance | 17056 |
+| cell3 | XZ gantry (3 MKS motors) + syringe pump + balance | 17058 |
+| cell4 | linear motor (Y axis) | 17060 |
+| (Phase-1 orchestrator) | composes cell1–4 (built when ≥2 cells run) | 17062 |
 
-Totals: 9 MKS motors, 3 syringe pumps, 1 linear motor, 1 balance, 1 arm.
-The 4 cells + arm compose into the Phase-1 orchestrator (one NUC).
+Totals: 9 MKS motors + 3 pumps + 3 balances + 1 linear motor. Each of
+cell1–3 is the **SyringeLiquidHandler** cell shape (XZ + pump + balance);
+SyringeLiquidHandler is their reference implementation. A robot arm is
+deferred — when added it is its own cell (or Phase-level shared); an arm
+reaching **into** a cell's workspace is cross-cell motion whose collision
+avoidance is a dedicated design point (e.g. lock/halt the target cell
+during transfer).
+
+### Port assignment rule
+
+- A port is allocated **per running `/v1` server** (per cell, plus the
+  orchestrator). Ports are **per-NUC**: a different NUC (different IP) may
+  reuse the same numbers — uniqueness is only required within one host.
+- This bench: **even numbers from 17054** (17040–17052 are already taken by
+  other containers on the shared NUC). cell1=17054, cell2=17056, …, +2 per
+  cell; the Phase orchestrator takes the next even (17062).
+- Before opening a port, confirm it is free on the host (`sudo ss -ltnp` /
+  `docker ps`); record the assignment here so the team does not collide.
 
 ### Phase 2 (NUC B)
 
@@ -138,6 +156,27 @@ server on a shared NUC; record them in a port table.
 Build order this implies: a single cell + its `/v1` server first (done for
 SyringeLiquidHandler); add an orchestrator only when a **second** cell
 exists to coordinate. Until then there is nothing to orchestrate.
+
+## Operator web — ONE UI per Phase, via the orchestrator
+
+There is **one operator web per Phase, not one per cell.** It talks to a
+single backend — the Phase orchestrator — which:
+
+- holds the **cell registry** (cell1→:17054, cell2→:17056, …),
+- **aggregates** status (fans out to each cell's `GET /v1/status`),
+- **routes** per-cell commands (web → orchestrator → the right cell `/v1`),
+- runs **cross-cell protocols server-side** (dispense → arm transfer →
+  weigh) — never in the browser, so a closed tab can't abort a run,
+- MAY serve the web's static files itself, so the operator has one URL.
+
+The web is structured as a **Phase shell** (all cells at a glance + a
+cross-cell protocol runner) wrapping a reusable **cell view** — the
+per-cell dashboard (`SyringeLiquidHandler/web`) is that cell view. Adding a
+cell = one registry entry, not a new site.
+
+Single-cell interim: with only one cell the web points straight at that
+cell's `/v1`; introduce the orchestrator + shell when the second cell lands.
+Keep the web's API base URL configurable so the repoint is trivial.
 
 ## Why incremental + uniform contract
 
